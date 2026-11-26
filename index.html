@@ -56,7 +56,7 @@ h1{font-size:clamp(18px,3.4vw,30px);margin:0;color:var(--head);letter-spacing:1p
 h2{position:absolute;top:-15px;left:14px;margin:0;font-size:10px;line-height:1;color:#fff;background:var(--pink);
   border:3px solid var(--edge);border-radius:999px;padding:6px 12px 5px;box-shadow:0 3px 0 rgba(74,46,34,.3)}
 .grid{display:grid;gap:18px;grid-template-columns:minmax(0,1fr);align-items:start}
-@media(max-width:520px){.buddy{flex-direction:column;align-items:flex-start}.bubble:before{display:none}h1{font-size:17px}.sub{font-size:16px}header .logo{width:60px;height:60px}}
+@media(max-width:520px){.tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.tabs button{font-size:8px;padding:11px 2px;border-radius:12px}.tabs button.alert:after{margin-left:2px;padding:1px 3px;font-size:7px}.buddy{flex-direction:column;align-items:flex-start}.bubble:before{display:none}h1{font-size:17px}.sub{font-size:16px}header .logo{width:60px;height:60px}}
 @media(min-width:880px){.grid{grid-template-columns:minmax(0,350px) minmax(0,1fr)}}
 .stack{display:grid;gap:18px;align-content:start}
 
