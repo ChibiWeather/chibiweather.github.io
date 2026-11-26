@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chibi Weather</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Pixelify+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#4a2e22; --soft:#8a6a5c; --paper:#fffaf2; --well:#fdeee0; --edge:#4a2e22;
+  --pink:#ff8fb1; --pink2:#ffc2d4; --sun:#ffd36b; --blue:#7cc4ff; --mint:#9be3b5;
+  --sky1:#8fd3ff; --sky2:#e3f4ff; --sky3:#fff1d6; --head:#fff;
+}
+body[data-sky="cloudy"]{--sky1:#a9b8d3;--sky2:#dfe6f2;--sky3:#f1eef0}
+body[data-sky="rain"]  {--sky1:#7f97bd;--sky2:#bccbe3;--sky3:#dde6f2}
+body[data-sky="storm"] {--sky1:#4e4f78;--sky2:#8487b5;--sky3:#b7b3d3}
+body[data-sky="snow"]  {--sky1:#bcd8f3;--sky2:#e9f2fd;--sky3:#ffffff}
+body[data-sky="fog"]   {--sky1:#bdb7c6;--sky2:#e2dee6;--sky3:#f3f0f4}
+body[data-sky="hot"]   {--sky1:#ff9f6b;--sky2:#ffc98a;--sky3:#ffefb8}
+body[data-sky="night"] {--sky1:#1f1d4a;--sky2:#3f3880;--sky3:#6b5aa8}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0}
+body{min-height:100vh;color:var(--ink);font:20px/1.35 "Pixelify Sans",ui-rounded,system-ui,sans-serif;
+  background:linear-gradient(180deg,var(--sky1),var(--sky2) 55%,var(--sky3)) fixed;
+  padding:16px max(4vw,16px) 48px;transition:background .6s;overflow-x:hidden}
+body[data-sky="night"]{background:
+  radial-gradient(2px 2px at 12% 18%,#fff 98%,transparent),radial-gradient(2px 2px at 32% 8%,#fff 98%,transparent),
+  radial-gradient(3px 3px at 58% 22%,#ffe9a8 98%,transparent),radial-gradient(2px 2px at 78% 12%,#fff 98%,transparent),
+  radial-gradient(2px 2px at 90% 30%,#fff 98%,transparent),radial-gradient(2px 2px at 45% 35%,#fff 98%,transparent),
+  linear-gradient(180deg,var(--sky1),var(--sky2) 55%,var(--sky3)) fixed}
+img.px,.px img{image-rendering:pixelated}
+h1,h2,.pfont{font-family:"Press Start 2P",ui-monospace,monospace;font-weight:400}
+.wrap{max-width:1180px;margin:0 auto;position:relative;z-index:1}
+
+/* drifting background clouds */
+.skydeco{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.skydeco img{position:absolute;width:96px;opacity:.55;image-rendering:pixelated;animation:drift linear infinite}
+@keyframes drift{from{transform:translateX(-140px)}to{transform:translateX(110vw)}}
+body[data-sky="night"] .skydeco img{opacity:.25}
+@media (prefers-reduced-motion:reduce){.skydeco img{animation:none}}
+
+/* header */
+header{display:flex;align-items:center;gap:14px;margin:4px 0 14px}
+header .logo{width:76px;height:76px;flex:none;filter:drop-shadow(0 4px 0 rgba(74,46,34,.25))}
+h1{font-size:clamp(18px,3.4vw,30px);margin:0;color:var(--head);letter-spacing:1px;
+  text-shadow:3px 0 0 var(--edge),-3px 0 0 var(--edge),0 3px 0 var(--edge),0 -3px 0 var(--edge),3px 3px 0 var(--edge),-3px 3px 0 var(--edge),3px -3px 0 var(--edge),-3px -3px 0 var(--edge),0 6px 0 var(--pink)}
+.sub{margin:8px 0 0;color:var(--head);font-weight:600;text-shadow:0 2px 0 rgba(74,46,34,.45)}
+
+/* panels */
+.box{position:relative;background:var(--paper);border:4px solid var(--edge);border-radius:16px;
+  box-shadow:0 6px 0 rgba(74,46,34,.35);padding:26px 16px 16px;margin-top:14px}
+h2{position:absolute;top:-15px;left:14px;margin:0;font-size:10px;line-height:1;color:#fff;background:var(--pink);
+  border:3px solid var(--edge);border-radius:999px;padding:6px 12px 5px;box-shadow:0 3px 0 rgba(74,46,34,.3)}
+.grid{display:grid;gap:18px;grid-template-columns:minmax(0,1fr);align-items:start}
+@media(max-width:520px){.buddy{flex-direction:column;align-items:flex-start}.bubble:before{display:none}h1{font-size:17px}.sub{font-size:16px}header .logo{width:60px;height:60px}}
+@media(min-width:880px){.grid{grid-template-columns:minmax(0,350px) minmax(0,1fr)}}
+.stack{display:grid;gap:18px;align-content:start}
+
+/* controls */
+form{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+input{flex:1 1 220px;font:inherit;font-size:20px;padding:10px 14px;background:var(--paper);color:var(--ink);
+  border:4px solid var(--edge);border-radius:14px;box-shadow:inset 0 3px 0 rgba(74,46,34,.12)}
+input::placeholder{color:var(--soft)}
+input:focus{outline:3px solid var(--pink);outline-offset:2px}
+button{font-family:"Press Start 2P",monospace;font-size:11px;padding:12px 16px;background:var(--sun);color:var(--ink);
+  border:4px solid var(--edge);border-radius:14px;box-shadow:0 5px 0 var(--edge);cursor:pointer;transition:transform .05s}
+button:hover{filter:brightness(1.05)}
+button:active{transform:translateY(4px);box-shadow:0 1px 0 var(--edge)}
+button.alt{background:var(--blue)}
+.tabs{display:flex;gap:10px;margin:4px 0 8px}
+.tabs button{background:var(--paper);color:var(--soft)}
+.tabs button[aria-selected="true"]{background:var(--pink);color:#fff;text-shadow:0 2px 0 var(--edge)}
+.page[hidden]{display:none}
+
+/* right now */
+.buddy{display:flex;gap:16px;align-items:center}
+.sprite{position:relative;width:150px;height:150px;flex:none;border:4px solid var(--edge);border-radius:18px;
+  background:radial-gradient(circle at 50% 60%,#fff 0 35%,var(--sky2) 70%);display:grid;place-items:center}
+.sprite img{width:100%;height:100%;image-rendering:pixelated;display:block}
+.sprite .side{position:absolute;right:-16px;bottom:-16px;width:62px;height:62px;filter:drop-shadow(0 3px 0 rgba(74,46,34,.3));animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-4px)}}
+.mood{font-size:22px;font-weight:600}
+.bubble{position:relative;background:#fff;border:3px solid var(--edge);border-radius:14px;padding:8px 10px}
+.bubble:before{content:"";position:absolute;left:-11px;top:18px;border:8px solid transparent;border-right-color:var(--edge);border-left:0}
+.place{color:var(--soft);font-size:17px;margin-top:6px}
+.big{font-family:"Press Start 2P",monospace;font-size:clamp(30px,5vw,44px);margin:20px 0 4px;color:var(--ink)}
+.big small{font-size:.45em;color:var(--pink);vertical-align:top;margin-left:4px}
+.cond{font-size:24px;font-weight:600}
+.note{color:var(--soft);font-size:17px;margin-top:6px}
+.row{display:flex;align-items:center;gap:10px;padding:6px 2px;border-top:3px dotted #ecd9c8}
+.row:first-child{border-top:0}
+.row .k{flex:1}
+.row .v{font-weight:600}
+.ic{width:24px;height:24px;flex:none;shape-rendering:crispEdges}
+
+/* today tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:10px}
+.tile{background:var(--well);border:3px solid var(--edge);border-radius:12px;padding:8px 10px;display:flex;gap:10px;align-items:center}
+.tile b{display:block;font-family:"Press Start 2P",monospace;font-size:8px;color:var(--soft);margin-bottom:4px}
+.tile span{font-size:22px;font-weight:600;white-space:nowrap}
+.tile span small{font-size:16px;color:var(--soft);font-weight:400}
+.tile .ic{width:32px;height:32px}
+
+/* hourly + daily */
+.hours{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 10px;scroll-snap-type:x proximity}
+.hours::-webkit-scrollbar{height:10px}.hours::-webkit-scrollbar-thumb{background:var(--pink2);border:2px solid var(--edge);border-radius:8px}
+.hour{flex:0 0 84px;scroll-snap-align:start;background:var(--well);border:3px solid var(--edge);border-radius:14px;padding:6px 4px 8px;text-align:center}
+.hour.now{background:var(--pink2)}
+.hour b,.day b{display:block;font-family:"Press Start 2P",monospace;font-size:8px;color:var(--soft);margin-bottom:2px}
+.hour img,.day img{width:56px;height:56px;image-rendering:pixelated;display:block;margin:0 auto}
+.hour .t{font-size:22px;font-weight:600}
+.bar{height:8px;background:#fff;border:2px solid var(--edge);border-radius:6px;margin:4px 6px 2px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--blue)}
+.pop{font-size:15px;color:#3d7fc4}
+.days{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(108px,1fr);gap:10px;overflow-x:auto;padding:4px 2px 10px}
+.days::-webkit-scrollbar{height:10px}.days::-webkit-scrollbar-thumb{background:var(--pink2);border:2px solid var(--edge);border-radius:8px}
+.day{background:var(--well);border:3px solid var(--edge);border-radius:14px;padding:8px 6px;text-align:center}
+.day.today{background:var(--pink2)}
+.day img{width:64px;height:64px}
+.day .c{font-size:16px;color:var(--soft);min-height:20px}
+.hi{color:#e0567f;font-weight:600}.lo{color:#3d7fc4;font-weight:600}
+
+/* drought */
+.dm{display:inline-block;padding:4px 10px;border:3px solid var(--edge);border-radius:999px;color:var(--ink);font-family:"Press Start 2P",monospace;font-size:9px}
+#map,#rmap{width:100%;aspect-ratio:1.6;background:#dff1ff;border:4px solid var(--edge);border-radius:14px;display:block;cursor:grab;touch-action:none}
+#map:active,#rmap:active{cursor:grabbing}
+#map path,#rmap path{vector-effect:non-scaling-stroke}
+#map path.st,#rmap path.st{fill:none;stroke:#9c8576;stroke-width:1}
+#map path.co,#rmap path.co{fill:none;stroke:#c7b3a6;stroke-width:.5;opacity:.8}
+#map path.nation,#rmap path.nation{fill:#fbf5ea;stroke:var(--edge);stroke-width:1.5}
+#map circle,#rmap circle{fill:var(--pink);stroke:var(--edge);stroke-width:3;vector-effect:non-scaling-stroke}
+.mapwrap{position:relative}
+.zoombtns{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:8px}
+.zoombtns button{width:42px;height:42px;padding:0;font-size:14px;border-radius:12px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px}
+.legend span{display:flex;align-items:center;gap:6px;font-size:17px}
+.legend img{width:18px;height:18px;border:2px solid var(--edge);border-radius:5px}
+.seg{display:inline-flex;gap:8px;margin:0 0 12px;flex-wrap:wrap}
+.seg button{background:var(--paper);color:var(--soft);font-size:9px;padding:9px 12px}
+.seg button[aria-pressed="true"]{background:var(--blue);color:var(--ink)}
+button.units{background:var(--pink2)}
+.tabs button.alert:after{content:"!";display:inline-block;margin-left:6px;background:#ff5a6e;color:#fff;border:2px solid var(--edge);border-radius:999px;padding:2px 5px;font-size:8px}
+.amt{font-size:15px;display:flex;align-items:center;justify-content:center;gap:3px}
+.amt .ic{width:14px;height:14px}
+.snowc{color:#7d5fc9}
+.tl{width:100%;height:auto;background:#fff;border:3px solid var(--edge);border-radius:12px;font-family:"Pixelify Sans",sans-serif}
+.calm{display:flex;align-items:center;gap:14px;font-size:20px}.calm img{width:80px;image-rendering:pixelated}
+.alert-card{background:#fff3d6;border:3px solid var(--edge);border-radius:12px;padding:8px 12px;margin-top:10px}
+.alert-card.warn{background:#ffd9df}
+.alert-card summary{cursor:pointer;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.alert-card p{margin:8px 0 0}
+.stormname{font-family:"Press Start 2P",monospace;font-size:14px;margin:16px 0 6px;color:var(--pink)}
+.legend i{width:18px;height:18px;border:3px solid var(--edge);border-radius:5px;display:inline-block}
+.err{color:#d8435f}
+a{color:#3d7fc4}
+</style>
+</head>
+<body data-sky="clear">
+<div class="skydeco" aria-hidden="true">
+  <img src="art/sprites/nimbus-nib-happy.png" alt="" style="top:9%;animation-duration:70s;animation-delay:-20s">
+  <img src="art/sprites/rainbow-cloud-grumpy.png" alt="" style="top:38%;width:72px;animation-duration:95s;animation-delay:-60s">
+  <img src="art/sprites/fog-light.png" alt="" style="top:68%;width:110px;animation-duration:85s;animation-delay:-5s">
+</div>
+<div class="wrap">
+  <header>
+    <img class="logo px" id="logo" src="art/sprites/girl-sunny-wave.png" alt="">
+    <div>
+      <h1>CHIBI WEATHER</h1>
+      <p class="sub">Your cozy weather, rain + drought pal</p>
+    </div>
+  </header>
+
+  <form id="f">
+    <input id="q" placeholder="City or ZIP, e.g. Austin, TX" autocomplete="off">
+    <button type="submit">GO!</button>
+    <button type="button" class="alt" id="me">MY SPOT</button>
+    <button type="button" class="units" id="units" title="Switch between Fahrenheit and Celsius">°F</button>
+  </form>
+
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" data-page="weather" aria-selected="true">WEATHER</button>
+    <button type="button" role="tab" data-page="drought" aria-selected="false">DROUGHT</button>
+    <button type="button" role="tab" data-page="rain" aria-selected="false">RAINFALL</button>
+    <button type="button" role="tab" data-page="storm" aria-selected="false">STORM</button>
+  </div>
+
+  <!-- ===== WEATHER PAGE ===== -->
+  <section class="page" id="page-weather">
+    <div class="grid">
+      <div class="box">
+        <h2>RIGHT NOW</h2>
+        <div class="buddy">
+          <div class="sprite" id="sprite-w"></div>
+          <div class="bubble"><div class="mood" id="wmood">Pick a place to start.</div><div class="place"></div></div>
+        </div>
+        <div class="big" id="temp">--</div>
+        <div id="cond" class="cond"></div>
+        <div class="note" id="feels"></div>
+        <div id="wstats" style="margin-top:12px"></div>
+      </div>
+      <div class="stack">
+        <div class="box">
+          <h2>TODAY</h2>
+          <div class="tiles" id="tiles"></div>
+        </div>
+        <div class="box">
+          <h2>NEXT 24 HOURS</h2>
+          <div class="hours" id="hours"></div>
+        </div>
+        <div class="box">
+          <h2>7-DAY FORECAST</h2>
+          <div class="days" id="days"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== DROUGHT PAGE ===== -->
+  <section class="page" id="page-drought" hidden>
+    <div class="grid">
+      <div class="box">
+        <h2>DROUGHT CHECK</h2>
+        <div class="buddy">
+          <div class="sprite" id="sprite-d"></div>
+          <div class="bubble"><div class="mood" id="dmood">Pick a place to start.</div><div class="place"></div></div>
+        </div>
+        <div id="dstats" style="margin-top:18px"></div>
+      </div>
+      <div class="box">
+        <h2>US DROUGHT MAP</h2>
+        <div class="mapwrap">
+          <svg id="map" viewBox="0 0 960 600" role="img" aria-label="US Drought Monitor map"></svg>
+          <div class="zoombtns">
+            <button type="button" id="zin" aria-label="Zoom in">+</button>
+            <button type="button" id="zout" aria-label="Zoom out">-</button>
+            <button type="button" id="zpin" class="alt" aria-label="Zoom to my place">&#9679;</button>
+            <button type="button" id="zreset" class="alt" aria-label="Show whole US">US</button>
+          </div>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div class="note">Scroll or pinch to zoom, drag to move. County lines show when zoomed in.</div>
+        <div class="note" id="mapnote">Loading the latest US Drought Monitor map...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== STORM PAGE ===== -->
+  <section class="page" id="page-storm" hidden>
+    <div class="grid">
+      <div class="box">
+        <h2>STORM UPDATE</h2>
+        <div class="buddy">
+          <div class="sprite" id="sprite-s"></div>
+          <div class="bubble"><div class="mood" id="smood">Pick a place to start.</div><div class="place"></div></div>
+        </div>
+        <div class="stormname" id="sname"></div>
+        <div id="sstats"></div>
+      </div>
+      <div class="stack">
+        <div class="box">
+          <h2>STORM TIMELINE</h2>
+          <div id="stimeline"></div>
+        </div>
+        <div class="box">
+          <h2>NWS ALERTS</h2>
+          <div id="salerts"></div>
+          <div class="note">Official watches and warnings from <a href="https://www.weather.gov/" target="_blank" rel="noopener">weather.gov</a>. Tap one to read it.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== RAINFALL PAGE ===== -->
+  <section class="page" id="page-rain" hidden>
+    <div class="grid">
+      <div class="box">
+        <h2>72-HOUR RAIN</h2>
+        <div class="buddy">
+          <div class="sprite" id="sprite-r"></div>
+          <div class="bubble"><div class="mood" id="rmood">Pick a place to start.</div><div class="place"></div></div>
+        </div>
+        <div id="rstats" style="margin-top:18px"></div>
+      </div>
+      <div class="box">
+        <h2>RAINFALL MAP</h2>
+        <div class="seg" role="group" aria-label="Rainfall map">
+          <button type="button" id="rnext" aria-pressed="true">NEXT 72 HRS</button>
+          <button type="button" id="rpast" aria-pressed="false">PAST 72 HRS</button>
+        </div>
+        <div class="mapwrap">
+          <svg id="rmap" viewBox="0 0 960 600" role="img" aria-label="72-hour rainfall map"></svg>
+          <div class="zoombtns">
+            <button type="button" id="rzin" aria-label="Zoom in">+</button>
+            <button type="button" id="rzout" aria-label="Zoom out">-</button>
+            <button type="button" id="rzpin" class="alt" aria-label="Zoom to my place">&#9679;</button>
+            <button type="button" id="rzreset" class="alt" aria-label="Show whole US">US</button>
+          </div>
+        </div>
+        <div class="legend" id="rlegend"></div>
+        <div class="note" id="rainnote">Loading the National Weather Service rainfall map...</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script>
+{
+const DM = [
+  {n:'None',      c:'#bfe8c4', mood:'All good! Ground is happy.'},
+  {n:'D0 Abnormally dry', c:'#ffff00', mood:'Getting a little thirsty...'},
+  {n:'D1 Moderate',  c:'#fcd37f', mood:'Water the plants, friend.'},
+  {n:'D2 Severe',    c:'#ffaa00', mood:'Crunchy grass. Save water!'},
+  {n:'D3 Extreme',   c:'#e60000', mood:'So dry. Very worried.'},
+  {n:'D4 Exceptional', c:'#730000', mood:'Emergency drought!!'}
+];
+const WMO = {0:'Clear',1:'Mostly clear',2:'Partly cloudy',3:'Cloudy',45:'Fog',48:'Fog',51:'Drizzle',53:'Drizzle',55:'Drizzle',56:'Freezing drizzle',57:'Freezing drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',66:'Freezing rain',67:'Freezing rain',71:'Light snow',73:'Snow',75:'Heavy snow',77:'Snow grains',80:'Showers',81:'Showers',82:'Big showers',85:'Snow showers',86:'Snow showers',95:'Thunderstorm',96:'T-storm + hail',99:'T-storm + hail'};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// rows: [icon, label, value]
+const rows = list => list.map(([ic,k,v])=>`<div class="row">${icon(ic)}<span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+
+// ---- tiny 8x8 pixel icons for the stat labels ----
+const PAL = {Y:'#ffd23f',O:'#ff9f43',B:'#4aa8ff',L:'#bfe6ff',W:'#6f9bd6',C:'#ffffff',E:'#4a2e22',R:'#ff5a6e',P:'#ff8fb1',G:'#5ec26a',D:'#a0703e',S:'#b9c3d6'};
+const ICONS = {
+  sun:    ['...Y....','.Y.OO.Y.','..OYYO..','YOYYYYOY','YOYYYYOY','..OYYO..','.Y.OO.Y.','...Y....'],
+  rise:   ['...Y....','..YYY...','.Y.Y.Y..','...Y....','........','..OYYO..','.OYYYYO.','EEEEEEEE'],
+  set:    ['...Y....','...Y....','.Y.Y.Y..','..YYY...','...Y....','..OYYO..','.OYYYYO.','EEEEEEEE'],
+  drop:   ['...B....','...B....','..BBB...','.BBLBB..','.BLBBB..','.BBBBB..','..BBB...','........'],
+  wind:   ['........','WWWWW.W.','.....W.W','WWWWWWW.','........','WWWW.W..','....WW..','........'],
+  gust:   ['.WW.....','W..W....','...W.WW.','WWWWW..W','.......W','WWWWWWW.','........','........'],
+  cloud:  ['........','...EE...','..ECCE..','.ECCCCEE','ECCCCCCE','ECSSSSCE','.EEEEEE.','........'],
+  thermo: ['...EE...','...ER...','...ER...','...ER...','...ER...','..ERRE..','..ERRE..','...EE...'],
+  gauge:  ['..EEEE..','.E.YY.E.','E......E','E..R...E','E...R..E','E...E..E','.EEEEEE.','........'],
+  eye:    ['........','..EEEE..','.E.BB.E.','E.BEEB.E','E.BEEB.E','.E.BB.E.','..EEEE..','........'],
+  umbrella:['...E....','..PPPP..','.PPPPPP.','PPPPPPPP','P..E..P.','...E....','...E....','.EE.....'],
+  bucket: ['........','.EEEEEE.','.BLBBBE.','.BBBBBE.','.EBBBBE.','..EBBE..','..EEEE..','........'],
+  sprout: ['........','.GG..GG.','.GGGGGG.','...GG...','...G....','...G....','.DDDDDD.','DDDDDDDD'],
+  cactus: ['...G....','..GGG...','G.GGG...','GGGGG.G.','..GGGGG.','..GGG...','.DDDDD..','DDDDDDD.'],
+  flake:  ['...L....','.L.B.L..','..BBB...','LBBCBBL.','..BBB...','.L.B.L..','...L....','........'],
+  moon:   ['..YYY...','.YY.....','YY......','YY......','YY.....Y','.YY...Y.','..YYYY..','........']
+};
+function icon(name){
+  const pat = ICONS[name]; if(!pat) return '';
+  let r = '';
+  pat.forEach((row,y)=>[...row].forEach((ch,x)=>{ if(PAL[ch]) r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${PAL[ch]}"/>`; }));
+  return `<svg class="ic" viewBox="0 0 8 8" aria-hidden="true">${r}</svg>`;
+}
+
+// Cloud sprite used as the little weather icon on hour and day tiles.
+function cloudIcon(code, isDay, temp){
+  if(code>=95) return 'stormbellow-storm';
+  if([56,57,66,67].includes(code)) return 'ice-sleet';
+  if((code>=71 && code<=77) || code===85 || code===86) return 'snow-snowing';
+  if(code===65 || code===82) return 'stormbellow-grumpy';
+  if(code>=51) return 'nimbus-nib-rain';
+  if(code===45 || code===48) return 'fog-light';
+  if(code===3) return 'rainbow-cloud-grumpy';
+  if(!isDay) return 'night-happy';
+  if(temp>=95) return 'sunny-melting';
+  if(code===2) return 'nimbus-nib-happy';
+  return 'sunny-cool';
+}
+// Background sky that matches the current weather.
+function skyFor(c){
+  const code = c.weather_code;
+  if(code>=95) return 'storm';
+  if(code>=56 && code<=86 && !(code>=61 && code<=65) && !(code>=80 && code<=82)) return 'snow';
+  if(code>=51) return 'rain';
+  if(code===45 || code===48) return 'fog';
+  if(!c.is_day) return 'night';
+  if(code===3) return 'cloudy';
+  if(c.temperature_2m>=92) return 'hot';
+  return 'clear';
+}
+const compass = deg => ['N','NE','E','SE','S','SW','W','NW'][Math.round(((deg%360)+360)%360/45)%8];
+const clock = iso => new Date(iso).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+// ---- units (data comes in °F / mph / inches; converted for display) ----
+let metric = false;
+try{ metric = localStorage.getItem('db-units')==='c'; }catch(e){}
+const tU   = f => Math.round(metric ? (f-32)*5/9 : f);
+const degU = () => metric ? '°C' : '°F';
+const spdU = m => metric ? Math.round(m*1.609)+' km/h' : Math.round(m)+' mph';
+const rainU = i => metric ? (i*25.4).toFixed(i*25.4<10?1:0)+' mm' : i.toFixed(2)+' in';
+const snowU = i => metric ? (i*2.54).toFixed(1)+' cm' : i.toFixed(1)+' in';
+const distU = m => metric ? Math.round(m/1000)+' km' : Math.round(m/1609)+' mi';
+const presU = h => metric ? Math.round(h)+' hPa' : (h*0.02953).toFixed(2)+' inHg';
+const uvWord = u => u<3?'Low':u<6?'Moderate':u<8?'High':u<11?'Very high':'Extreme';
+
+// ---- tabs ----
+function showPage(name){
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected', b.dataset.page===name));
+  document.querySelectorAll('.page').forEach(p=>p.hidden = p.id !== 'page-'+name);
+  try{ localStorage.setItem('db-tab', name); }catch(e){}
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
+try{ const t = location.hash==='#drought' ? 'drought' : location.hash==='#rain' ? 'rain' : location.hash==='#storm' ? 'storm' : location.hash==='#weather' ? 'weather' : localStorage.getItem('db-tab'); if(t==='drought' || t==='rain' || t==='storm') showPage(t); }catch(e){}
+
+// ---- mascots ----
+// Art from Keith, cut to 80px with a light pixel pass: art/sprites/<character>-<pose>.png
+// Originals are kept in art/originals.
+// The girl is the main mascot; the cloud rides along as a small sidekick in the corner.
+function setMascot(el, girl, cloud){
+  $(el).innerHTML = `<img src="art/sprites/${girl}.png" alt="">` + (cloud ? `<img class="side" src="art/sprites/${cloud}.png" alt="">` : '');
+}
+// Girl pose that goes with each cloud pose (same mild-to-extreme step).
+const GIRL = {
+  'stormbellow-storm':'girl-storm-thunder', 'stormbellow-dizzy':'girl-rain-windy', 'stormbellow-grumpy':'girl-rain-soaked',
+  'nimbus-nib-rain':'girl-rain-umbrella', 'nimbus-nib-happy':'girl-sunny-wave', 'rainbow-cloud-grumpy':'girl-fog-yawn',
+  'ice-happy':'girl-ice-skating', 'ice-sleet':'girl-ice-wobbly', 'ice-shiver':'girl-ice-slip', 'ice-frozen':'girl-ice-fallen',
+  'snow-happy':'girl-snow-happy', 'snow-snowing':'girl-snow-snowball', 'snow-wince':'girl-snow-shiver', 'snow-flat':'girl-snow-buried',
+  'fog-light':'girl-fog-yawn', 'fog-sleepy':'girl-fog-rubbing', 'fog-wince':'girl-fog-lost', 'fog-flat':'girl-fog-cane',
+  'sunny-cool':'girl-sunny-wave', 'sunny-sweaty':'girl-sunny-popsicle', 'sunny-melting':'girl-sunny-fanning', 'sunny-flat':'girl-sunny-melted',
+  'night-happy':'girl-night-wave', 'night-sleepy':'girl-night-yawn', 'night-wince':'girl-night-tired', 'night-asleep':'girl-night-asleep'
+};
+function girlFor(cloud, c){
+  const code = c.weather_code, gust = c.wind_gusts_10m;
+  if(code===96 || code===99) return 'girl-storm-dizzy';          // hail
+  if(cloud==='stormbellow-dizzy' && gust>=45) return 'girl-storm-gale';
+  if(cloud==='stormbellow-grumpy' && gust>=25) return 'girl-storm-nervous';
+  if(cloud==='nimbus-nib-rain' && (code===63 || code===81 || code===55)) return 'girl-rain-splash';
+  return GIRL[cloud];
+}
+setMascot('sprite-w','girl-sunny-wave'); setMascot('sprite-d','girl-drought-watering');
+
+// Picks the weather-page mascot. Each character's 4 poses go from mild to extreme.
+// Returns [sprite name, message].
+function weatherMood(c){
+  const code = c.weather_code, t = c.temperature_2m, gust = c.wind_gusts_10m;
+  const visMi = c.visibility==null ? 1 : c.visibility/1609;
+  const hr = Number(c.time.slice(11,13)); // local hour
+  // thunder
+  if(code>=95) return ['stormbellow-storm','Thunder! Stay inside.'];
+  // ice: freezing drizzle / freezing rain
+  if(code===56) return ['ice-happy','A little freezing drizzle. Careful!'];
+  if(code===57) return ['ice-sleet','Freezing drizzle. Slick out there.'];
+  if(code===66) return ['ice-shiver','Freezing rain! Watch your step.'];
+  if(code===67) return ['ice-frozen','Ice storm! Stay off the roads.'];
+  // snow
+  if((code>=71 && code<=77) || code===85 || code===86){
+    if(gust>=35 || code===75 && gust>=25) return ['snow-flat','Blizzard! Stay in and stay warm.'];
+    if(code===75 || code===86) return ['snow-wince','Heavy snow coming down!'];
+    if(code===73 || code===85) return ['snow-snowing','Snowing! Bundle up.'];
+    return ['snow-happy','Light snow. So pretty!'];
+  }
+  // wind
+  if(gust>=35) return ['stormbellow-dizzy','So windy! Hold onto your hat.'];
+  // rain
+  if(code===65 || code===82) return ['stormbellow-grumpy','Pouring rain. Stay dry!'];
+  if(code>=51) return ['nimbus-nib-rain','Rain! Good for the ground.'];
+  // fog, by how far you can see
+  if(code===45 || code===48){
+    if(visMi<0.25) return ['fog-flat','Pea soup fog. Can\'t see a thing!'];
+    if(visMi<0.5 || code===48) return ['fog-wince','Thick fog. Drive slow.'];
+    if(visMi<1) return ['fog-sleepy','Foggy and sleepy out.'];
+    return ['fog-light','A little misty out.'];
+  }
+  // cold, dry
+  if(t<=0) return ['ice-frozen','Below zero! Frozen solid.'];
+  if(t<=15) return ['ice-shiver','Bitter cold. Brrr!'];
+  if(t<=32) return ['ice-happy','Freezing out. Grab a coat.'];
+  // heat
+  if(t>=105) return ['sunny-flat','Dangerous heat! Stay inside.'];
+  if(t>=97) return ['sunny-melting','Melting! Find shade.'];
+  if(t>=88) return ['sunny-sweaty','Hot one today. Drink water!'];
+  // calm night
+  if(!c.is_day && code<=2){
+    if(t>=80) return ['night-wince','Too warm to sleep...'];
+    if(hr>=23 || hr<5) return ['night-asleep','Zzz... late night.'];
+    if(hr>=21 || hr<7) return ['night-sleepy','Getting sleepy. Good night!'];
+    return ['night-happy','Nice clear night out.'];
+  }
+  if(!c.is_day) return ['night-sleepy','Cloudy night. Cozy time!'];
+  if(code<=1) return ['sunny-cool','Sunny and nice out!'];
+  if(code===2) return ['nimbus-nib-happy','Pretty decent day.'];
+  return ['rainbow-cloud-grumpy','Gray and cloudy today.'];
+}
+
+// ---- drought map ----
+const svg = d3.select('#map');
+const root = svg.append('g');
+let zoomK = 1;
+const zoom = d3.zoom().scaleExtent([1,40]).translateExtent([[0,0],[960,600]])
+  .on('zoom', e=>{
+    zoomK = e.transform.k;
+    root.attr('transform', e.transform);
+    root.select('path.co').attr('display', zoomK>=3 ? null : 'none');
+    root.select('circle').attr('r', 7/zoomK);
+  });
+svg.call(zoom);
+$('zin').onclick = ()=>svg.transition().duration(300).call(zoom.scaleBy, 2);
+$('zout').onclick = ()=>svg.transition().duration(300).call(zoom.scaleBy, 0.5);
+$('zreset').onclick = ()=>svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+$('zpin').onclick = ()=>{
+  const xy = pin && proj([pin.lon, pin.lat]); if(!xy) return;
+  svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity.translate(480,300).scale(8).translate(-xy[0],-xy[1]));
+};
+const usTopo = fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json').then(r=>r.json());
+const proj = d3.geoAlbersUsa().scale(1250).translate([480,300]);
+const path = d3.geoPath(proj);
+let droughtFeatures = null, pin = null;
+
+$('legend').innerHTML = DM.slice(1).map(d=>`<span><i style="background:${d.c}"></i>${esc(d.n)}</span>`).join('');
+
+async function loadMap(){
+  try{
+    // counties file also holds states + nation outlines
+    const us = await usTopo;
+    root.append('path').datum(topojson.feature(us, us.objects.nation)).attr('class','nation').attr('d', path);
+    const g = root.append('g');
+    root.append('path').datum(topojson.mesh(us, us.objects.counties, (a,b)=>a!==b && (a.id/1000|0)===(b.id/1000|0))).attr('class','co').attr('d', path).attr('display', zoomK>=3 ? null : 'none');
+    root.append('path').datum(topojson.mesh(us, us.objects.states, (a,b)=>a!==b)).attr('class','st').attr('d', path);
+    try{
+      const r = await fetch('https://droughtmonitor.unl.edu/data/json/usdm_current.json');
+      const dm = await r.json();
+      // USDM GeoJSON uses counterclockwise outer rings; d3 wants clockwise, so flip them
+      // (otherwise every shape fills the whole map and the lookup is inverted).
+      dm.features.forEach(f=>{
+        const geo = f.geometry; if(!geo) return;
+        const polys = geo.type==='Polygon' ? [geo.coordinates] : geo.coordinates;
+        polys.forEach(p=>p.forEach(ring=>ring.reverse()));
+      });
+      droughtFeatures = dm.features.map(f=>({f, level: Number(f.properties.DM ?? f.properties.dm)}));
+      droughtFeatures.sort((a,b)=>a.level-b.level);
+      g.selectAll('path').data(droughtFeatures).join('path')
+        .attr('d', d=>path(d.f)).attr('fill', d=>DM[d.level+1].c).attr('stroke','none');
+      $('mapnote').textContent = 'Source: US Drought Monitor (updated weekly on Thursdays).';
+    }catch(e){
+      $('mapnote').innerHTML = '<span class="err">Could not load drought data right now.</span> See <a href="https://droughtmonitor.unl.edu/" target="_blank" rel="noopener">droughtmonitor.unl.edu</a>.';
+    }
+    if(pin) placePin(pin);
+  }catch(e){
+    $('mapnote').innerHTML = '<span class="err">Map failed to load.</span>';
+  }
+}
+function placePin(p){
+  pin = p;
+  root.selectAll('circle').remove();
+  const xy = proj([p.lon, p.lat]);
+  if(xy) root.append('circle').attr('cx',xy[0]).attr('cy',xy[1]).attr('r',7/zoomK);
+}
+function droughtAt(lon, lat){
+  if(!droughtFeatures) return null;
+  let lvl = -1;
+  for(const d of droughtFeatures) if(d.level>lvl && d3.geoContains(d.f, [lon,lat])) lvl = d.level;
+  return lvl;
+}
+
+// ---- 72-hour rainfall map (National Weather Service) ----
+// NEXT = WPC 72-hour forecast (QPF Day 1-3); PAST = observed "Last 3 Days" analysis (RFC QPE).
+// The NWS server draws the image in an Albers projection that matches the d3 map,
+// so its official colors line up with our state lines and zoom.
+const NWS = 'https://mapservices.weather.noaa.gov';
+const RAIN = {
+  next:{svc:NWS+'/vector/rest/services/precip/wpc_qpf/MapServer', layer:9,  label:'Forecast rain for the next 72 hours, from the NWS Weather Prediction Center.'},
+  past:{svc:NWS+'/raster/rest/services/obs/rfc_qpe/MapServer',   layer:40, label:'Rain that fell in the last 72 hours (through 7 AM Eastern today), from NWS observed analysis.'}
+};
+let rainMode = 'next', rainT = d3.zoomIdentity, rk = 1, rainReq = 0, rainSpot = null, rainImg = null;
+const rsvg = d3.select('#rmap'), rroot = rsvg.append('g');
+const l48 = d3.geoAlbers().scale(1250).translate([480,300]);   // the lower-48 part of proj
+const ER = 6371000, MPX = ER/1250, ORG = l48([-96,38.7]);
+const WKT = `PROJCS["DB_Albers",GEOGCS["GCS_Sphere",DATUM["D_Sphere",SPHEROID["Sphere",${ER},0]],PRIMEM["Greenwich",0],UNIT["Degree",0.0174532925199433]],PROJECTION["Albers"],PARAMETER["False_Easting",0],PARAMETER["False_Northing",0],PARAMETER["Central_Meridian",-96],PARAMETER["Standard_Parallel_1",29.5],PARAMETER["Standard_Parallel_2",45.5],PARAMETER["Latitude_Of_Origin",38.7],UNIT["Meter",1]]`;
+function rainUrl(x0,y0,x1,y1,w,h){
+  const m = RAIN[rainMode], sr = encodeURIComponent(JSON.stringify({wkt:WKT}));
+  const bbox = [(x0-ORG[0])*MPX, (ORG[1]-y1)*MPX, (x1-ORG[0])*MPX, (ORG[1]-y0)*MPX].join(',');
+  // 10-minute cache key keeps it fresh without hammering the server
+  return `${m.svc}/export?bbox=${bbox}&bboxSR=${sr}&imageSR=${sr}&size=${w},${h}&format=png32&transparent=true&layers=show:${m.layer}&dpi=96&f=image&t=${Math.floor(Date.now()/600000)}`;
+}
+const rzoom = d3.zoom().scaleExtent([1,40]).translateExtent([[0,0],[960,600]])
+  .on('zoom', e=>{ rainT = e.transform; rk = rainT.k; rroot.attr('transform', rainT); rroot.select('circle').attr('r', 7/rk); })
+  .on('end', ()=>refreshRain());   // fetch a sharper image for the zoomed-in area
+rsvg.call(rzoom);
+$('rzin').onclick = ()=>rsvg.transition().duration(300).call(rzoom.scaleBy, 2);
+$('rzout').onclick = ()=>rsvg.transition().duration(300).call(rzoom.scaleBy, 0.5);
+$('rzreset').onclick = ()=>rsvg.transition().duration(500).call(rzoom.transform, d3.zoomIdentity);
+$('rzpin').onclick = ()=>{
+  const xy = pin && proj([pin.lon, pin.lat]); if(!xy) return;
+  rsvg.transition().duration(600).call(rzoom.transform, d3.zoomIdentity.translate(480,300).scale(6).translate(-xy[0],-xy[1]));
+};
+function refreshRain(){
+  if(!rainImg) return;
+  const t = rainT, x0 = -t.x/t.k, y0 = -t.y/t.k, x1 = (960-t.x)/t.k, y1 = (600-t.y)/t.k;
+  const url = rainUrl(x0,y0,x1,y1,1440,900), id = ++rainReq, pre = new Image();
+  pre.onload = ()=>{ if(id!==rainReq) return;
+    rainImg.attr('href',url).attr('x',x0).attr('y',y0).attr('width',x1-x0).attr('height',y1-y0);
+    $('rainnote').textContent = RAIN[rainMode].label + ' Scroll or pinch to zoom.'; };
+  pre.onerror = ()=>{ if(id===rainReq) $('rainnote').innerHTML = '<span class="err">The NWS rainfall map is not answering right now.</span> Try again in a bit.'; };
+  pre.src = url;
+}
+async function rainLegend(){
+  try{
+    const m = RAIN[rainMode];
+    const j = await (await fetch(`${m.svc}/legend?f=json`)).json();
+    const L = j.layers.find(l=>l.layerId===m.layer);
+    const items = L.legend.filter(x=>!/^(0|Less than 0\.01|Missing Data)$/.test(x.label.trim())).reverse();
+    $('rlegend').innerHTML = items.map(x=>`<span><img src="data:${x.contentType};base64,${x.imageData}" alt="">${esc(x.label.replace(' (inches)',''))}</span>`).join('') + '<span class="note" style="margin:0">(inches)</span>';
+  }catch(e){ $('rlegend').innerHTML = ''; }
+}
+async function loadRainMap(){
+  const us = await usTopo;
+  const lower48 = {type:'FeatureCollection', features: topojson.feature(us, us.objects.states).features.filter(f=>+f.id<57 && f.id!=='02' && f.id!=='15')};
+  rroot.append('defs').append('clipPath').attr('id','l48clip').append('path').datum(lower48).attr('d', path);
+  rroot.append('path').datum(topojson.feature(us, us.objects.nation)).attr('class','nation').attr('d', path);
+  rainImg = rroot.append('image').attr('clip-path','url(#l48clip)').attr('preserveAspectRatio','none');
+  rroot.append('path').datum(topojson.mesh(us, us.objects.states, (a,b)=>a!==b)).attr('class','st').attr('d', path);
+  if(pin) placeRainPin(pin);
+  refreshRain(); rainLegend();
+}
+function placeRainPin(p){
+  rroot.selectAll('circle').remove();
+  const xy = proj([p.lon, p.lat]);
+  if(xy) rroot.append('circle').attr('cx',xy[0]).attr('cy',xy[1]).attr('r',7/rk);
+}
+function setRainMode(m){
+  rainMode = m;
+  $('rnext').setAttribute('aria-pressed', m==='next'); $('rpast').setAttribute('aria-pressed', m==='past');
+  $('rainnote').textContent = 'Loading...';
+  refreshRain(); rainLegend();
+}
+$('rnext').onclick = ()=>setRainMode('next');
+$('rpast').onclick = ()=>setRainMode('past');
+
+// Rain totals at the searched spot, read from the same NWS layers as the map.
+async function loadRainSpot(p){
+  rainSpot = null; renderRain();
+  const pt = `geometry=${p.lon},${p.lat}&geometryType=esriGeometryPoint`;
+  const [next, past] = await Promise.all([
+    fetch(`${RAIN.next.svc}/${RAIN.next.layer}/query?${pt}&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=qpf,start_time,end_time&returnGeometry=false&f=json`)
+      .then(r=>r.json()).then(j=>{ const f = j.features||[]; return {v: f.length ? Math.max(...f.map(x=>+x.attributes.qpf||0)) : 0, a: f[0]?.attributes}; }).catch(()=>null),
+    fetch(`${RAIN.past.svc}/identify?${pt}&sr=4326&layers=all:${RAIN.past.layer}&tolerance=1&mapExtent=-130,20,-60,55&imageDisplay=800,400,96&returnGeometry=false&f=json`)
+      .then(r=>r.json()).then(j=>{ const v = parseFloat(j.results?.[0]?.attributes?.['Service Pixel Value']); return isNaN(v) ? null : {v}; }).catch(()=>null)
+  ]);
+  if(current !== p) return;
+  rainSpot = {next, past}; renderRain();
+}
+function renderRain(){
+  if(!current) return;
+  if(!rainSpot){ $('rmood').textContent = 'Checking the rain gauges...'; $('rstats').innerHTML = ''; return; }
+  const n = rainSpot.next, pa = rainSpot.past;
+  const when = s => new Date(s.replace(' ','T')+'Z').toLocaleString('en-US',{weekday:'short',hour:'numeric'});
+  $('rstats').innerHTML = rows([
+    ['umbrella','Next 72 hours', n ? rainU(n.v) : 'n/a'],
+    ['bucket','Past 72 hours', pa ? rainU(pa.v) : 'n/a'],
+    ...(n?.a ? [['sun','Forecast', `${when(n.a.start_time)} - ${when(n.a.end_time)}`]] : [])
+  ]) + '<div class="note">Totals come from the same NWS data as the map. The forecast map shows banded amounts, so the next-72-hours number is the band your spot falls in.</div>';
+  const v = n ? n.v : 0;
+  const [girl, cloud, msg] =
+    v < 0.01 ? ['girl-sunny-wave','sunny-cool','No rain coming. Stay hydrated!'] :
+    v < 0.5  ? ['girl-rain-umbrella','nimbus-nib-rain','A little rain on the way.'] :
+    v < 1.5  ? ['girl-rain-splash','nimbus-nib-rain','Puddle time! Rain is coming.'] :
+    v < 3    ? ['girl-rain-soaked','stormbellow-grumpy','Lots of rain coming. Stay dry!'] :
+               ['girl-storm-dizzy','stormbellow-storm','Huge rain totals! Watch for flooding.'];
+  setMascot('sprite-r', girl, cloud);
+  $('rmood').textContent = msg;
+}
+setMascot('sprite-r','girl-rain-umbrella','nimbus-nib-rain');
+
+// ---- STORM tab: find the next storm in the hourly forecast and total it up ----
+// A "storm" is a run of wet hours (gaps of up to 3 dry hours allowed) that adds up to
+// real weather: 0.5"+ of water, 2"+ of snow, thunder, freezing rain, or 40+ mph gusts.
+let alerts = null;
+function findStorms(){
+  const h = wx.hourly, c = wx.current;
+  let s = h.time.findIndex(t=>t.slice(0,13)===c.time.slice(0,13)); if(s<0) s = 0;
+  const wet = k => (h.precipitation[k]||0) >= 0.01 || (h.snowfall[k]||0) > 0;
+  const events = [];
+  let cur = null, dry = 0;
+  for(let k=s; k<h.time.length; k++){
+    if(wet(k)){ if(!cur) cur = {a:k, b:k}; cur.b = k; dry = 0; }
+    else if(cur && ++dry > 3){ events.push(cur); cur = null; dry = 0; }
+  }
+  if(cur) events.push(cur);
+  return events.map(e=>{
+    const ks = []; for(let k=e.a; k<=e.b; k++) ks.push(k);
+    const sum = f => ks.reduce((a,k)=>a+(f(k)||0),0);
+    const codes = ks.map(k=>h.weather_code[k]);
+    const ev = {
+      a:e.a, b:e.b, ks, hours: e.b-e.a+1,
+      rain: sum(k=>(h.rain[k]||0)+(h.showers[k]||0)),
+      snow: sum(k=>h.snowfall[k]),
+      water: sum(k=>h.precipitation[k]),
+      gust: Math.max(...ks.map(k=>h.wind_gusts_10m[k]||0)),
+      peak: Math.max(...ks.map(k=>h.precipitation[k]||0)),
+      thunder: codes.some(x=>x>=95), ice: codes.some(x=>[56,57,66,67].includes(x)),
+      startsNow: e.a===s
+    };
+    ev.big = ev.water>=0.5 || ev.snow>=2 || ev.thunder || ev.ice || (ev.gust>=40 && ev.water>=0.1);
+    ev.kind = ev.ice ? 'Ice storm' : ev.snow>=2 && ev.rain>=0.25 ? 'Wintry mix storm' : ev.snow>=2 ? 'Snowstorm'
+            : ev.thunder ? 'Thunderstorms' : ev.gust>=40 ? 'Wind + rain storm' : 'Rainstorm';
+    return ev;
+  });
+}
+function stormMascot(ev){
+  if(!ev) return ['girl-sunny-wave','sunny-cool','No storms ahead! Enjoy the calm.'];
+  if(ev.ice) return ['girl-ice-slip','ice-shiver','Ice storm coming! Watch your step.'];
+  if(ev.snow>=12) return ['girl-snow-buried','snow-flat','Huge snowstorm! Stock up and stay in.'];
+  if(ev.snow>=6) return ['girl-snow-shiver','snow-wince','Big snow coming. Bundle up!'];
+  if(ev.snow>=2) return ['girl-snow-snowball','snow-snowing','Snow day coming! Snowball time.'];
+  if(ev.thunder) return ['girl-storm-thunder','stormbellow-storm','Thunderstorms coming! Stay inside.'];
+  if(ev.gust>=45) return ['girl-storm-gale','stormbellow-dizzy','Windy storm coming. Hold on tight!'];
+  if(ev.water>=1.5) return ['girl-rain-soaked','stormbellow-grumpy','Soaking rain coming. Stay dry!'];
+  return ['girl-storm-nervous','stormbellow-grumpy','A rainy storm is on the way.'];
+}
+function renderStorm(){
+  if(!wx || !current) return;
+  const h = wx.hourly;
+  const all = findStorms(), big = all.filter(e=>e.big), ev = big[0] || null;
+  const [girl, cloud, msg] = stormMascot(ev);
+  setMascot('sprite-s', girl, cloud);
+  $('smood').textContent = msg;
+  const tab = document.querySelector('[data-page=storm]');
+  tab.classList.toggle('alert', !!ev || (alerts && alerts.length>0));
+  const when = k => new Date(h.time[k]).toLocaleString('en-US',{weekday:'short',hour:'numeric'});
+  if(!ev){
+    const light = all[0];
+    $('sname').textContent = 'ALL CALM';
+    $('sstats').innerHTML = rows([
+      ['sun','Next 7 days', 'No storms'],
+      ['drop','Next wet spell', light ? `${when(light.a)}, ${rainU(light.water)}` : 'None'],
+    ]) + '<div class="note">A storm here means 0.5 in of rain, 2 in of snow, thunder, ice, or strong wind on the way.</div>';
+    $('stimeline').innerHTML = '<div class="calm"><img src="art/sprites/sunny-cool.png" alt=""><div>Nothing stormy in the next 7 days.</div></div>';
+  } else {
+    $('sname').textContent = ev.kind.toUpperCase();
+    $('sstats').innerHTML = rows([
+      ['umbrella','Starts', ev.startsNow ? 'Now' : when(ev.a)],
+      ['moon','Ends', when(ev.b)],
+      ['gauge','Lasts', ev.hours + (ev.hours===1?' hour':' hours')],
+      ['drop','Total rain', rainU(ev.rain)],
+      ['flake','Total snow', snowU(ev.snow)],
+      ['bucket','All precip (water)', rainU(ev.water)],
+      ['gust','Strongest gusts', spdU(ev.gust)],
+      ['cloud','Heaviest hour', rainU(ev.peak)]
+    ]) + (big.length>1 ? `<div class="note">Another storm follows: ${esc(big[1].kind.toLowerCase())} starting ${when(big[1].a)}.</div>` : '');
+    drawTimeline(ev);
+  }
+  renderAlerts();
+}
+// Hour-by-hour bars for the storm: blue = rain, lavender = snow (as water).
+function drawTimeline(ev){
+  const h = wx.hourly, W = 640, H = 190, pad = 26, n = ev.ks.length, bw = (W-pad*2)/n;
+  const max = Math.max(0.05, ...ev.ks.map(k=>h.precipitation[k]||0));
+  let bars = '', labels = '';
+  ev.ks.forEach((k,i)=>{
+    const tot = h.precipitation[k]||0, sn = Math.min(tot, (h.snowfall[k]||0)/10), rn = tot - sn;
+    const x = pad + i*bw, hr = (H-pad*2)/max;
+    if(rn>0) bars += `<rect x="${x+1}" y="${H-pad-rn*hr}" width="${Math.max(1,bw-2)}" height="${rn*hr}" fill="#7cc4ff" stroke="#4a2e22" stroke-width="1"/>`;
+    if(sn>0) bars += `<rect x="${x+1}" y="${H-pad-(rn+sn)*hr}" width="${Math.max(1,bw-2)}" height="${sn*hr}" fill="#d9ccff" stroke="#4a2e22" stroke-width="1"/>`;
+    const t = new Date(h.time[k]);
+    const step = n<=12 ? 2 : n<=36 ? 6 : 12;
+    if(i % step === 0) labels += `<text x="${x}" y="${H-6}" font-size="11" fill="#8a6a5c">${t.toLocaleString('en-US',{weekday:n>12?'short':undefined,hour:'numeric'})}</text>`;
+  });
+  $('stimeline').innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="tl" role="img" aria-label="Hourly rain and snow during the storm">
+    <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="#4a2e22" stroke-width="2"/>${bars}${labels}
+    <text x="${pad}" y="14" font-size="11" fill="#8a6a5c">Heaviest hour: ${rainU(max)}</text></svg>
+    <div class="legend"><span><i style="background:#7cc4ff"></i>Rain</span><span><i style="background:#d9ccff"></i>Snow (as water)</span></div>`;
+}
+async function loadAlerts(p){
+  alerts = null; renderAlerts();
+  try{
+    const j = await (await fetch(`https://api.weather.gov/alerts/active?point=${p.lat.toFixed(4)},${p.lon.toFixed(4)}`)).json();
+    if(current !== p) return;
+    alerts = (j.features||[]).map(f=>f.properties);
+  }catch(e){ alerts = 'err'; }
+  renderAlerts(); if(wx) renderStorm();
+}
+function renderAlerts(){
+  const box = $('salerts');
+  if(alerts===null){ box.innerHTML = '<div class="note">Checking NWS alerts...</div>'; return; }
+  if(alerts==='err'){ box.innerHTML = '<div class="note">Could not reach weather.gov for alerts right now.</div>'; return; }
+  if(!alerts.length){ box.innerHTML = '<div class="row">'+icon('sun')+'<span class="k">No active NWS alerts here.</span></div>'; return; }
+  box.innerHTML = alerts.map(a=>`<details class="alert-card ${/warning/i.test(a.event)?'warn':''}">
+    <summary><b>${esc(a.event)}</b><span>${a.ends||a.expires ? 'until '+new Date(a.ends||a.expires).toLocaleString('en-US',{weekday:'short',hour:'numeric',minute:'2-digit'}) : ''}</span></summary>
+    <p>${esc(a.headline||'')}</p><p class="note">${esc(a.description||'').replace(/\n\n/g,'<br><br>')}</p></details>`).join('');
+}
+
+// ---- places ----
+async function geocode(q){
+  const zip = /^\d{5}$/.test(q.trim());
+  const u = 'https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&countryCode=US&name=' + encodeURIComponent(zip ? q.trim() : q.split(',')[0].trim());
+  const j = await (await fetch(u)).json();
+  if(!j.results?.length) throw new Error('Place not found');
+  const st = q.includes(',') ? q.split(',')[1].trim().toLowerCase() : '';
+  const hit = j.results.find(r => st && ((r.admin1||'').toLowerCase().startsWith(st) || stateAbbr(r.admin1)===st)) || j.results[0];
+  return {lat:hit.latitude, lon:hit.longitude, name:[hit.name, hit.admin1].filter(Boolean).join(', ')};
+}
+const ABBR = {alabama:'al',alaska:'ak',arizona:'az',arkansas:'ar',california:'ca',colorado:'co',connecticut:'ct',delaware:'de',florida:'fl',georgia:'ga',hawaii:'hi',idaho:'id',illinois:'il',indiana:'in',iowa:'ia',kansas:'ks',kentucky:'ky',louisiana:'la',maine:'me',maryland:'md',massachusetts:'ma',michigan:'mi',minnesota:'mn',mississippi:'ms',missouri:'mo',montana:'mt',nebraska:'ne',nevada:'nv','new hampshire':'nh','new jersey':'nj','new mexico':'nm','new york':'ny','north carolina':'nc','north dakota':'nd',ohio:'oh',oklahoma:'ok',oregon:'or',pennsylvania:'pa','rhode island':'ri','south carolina':'sc','south dakota':'sd',tennessee:'tn',texas:'tx',utah:'ut',vermont:'vt',virginia:'va',washington:'wa','west virginia':'wv',wisconsin:'wi',wyoming:'wy'};
+const stateAbbr = n => ABBR[(n||'').toLowerCase()] || '';
+
+// ---- load + render ----
+let current = null, wx = null;
+
+async function showPlace(p){
+  current = p; wx = null;
+  $('wmood').textContent = $('dmood').textContent = $('smood').textContent = 'Checking the sky...';
+  document.querySelectorAll('.place').forEach(el=>el.textContent = p.name);
+  placePin(p); placeRainPin(p);
+  loadRainSpot(p); loadAlerts(p);
+  const u = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}`+
+    '&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,visibility,is_day'+
+    '&hourly=temperature_2m,weather_code,precipitation_probability,is_day,precipitation,rain,showers,snowfall,wind_gusts_10m,soil_moisture_0_to_1cm'+
+    '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,snowfall_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max,sunrise,sunset'+
+    '&past_days=30&forecast_days=7&timezone=auto'+
+    '&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch';
+  try{
+    wx = await (await fetch(u)).json();
+    if(current !== p) return;
+    renderWeather();
+    renderDrought();
+    renderStorm();
+    try{ localStorage.setItem('db-last', JSON.stringify(p)); }catch(e){}
+  }catch(e){
+    $('wmood').innerHTML = $('dmood').innerHTML = '<span class="err">Weather failed to load. Try again.</span>';
+  }
+}
+
+function renderWeather(){
+  const c = wx.current, d = wx.daily, h = wx.hourly;
+  const T = 30; // index of today in daily (after 30 past days)
+  const [sprite, msg] = weatherMood(c);
+  const girl = girlFor(sprite, c);
+  setMascot('sprite-w', girl, sprite);
+  $('logo').src = 'art/sprites/' + girl + '.png';
+  document.body.dataset.sky = skyFor(c);
+
+  $('wmood').textContent = msg;
+  $('temp').innerHTML = tU(c.temperature_2m) + `<small>${degU()}</small>`;
+  $('cond').textContent = WMO[c.weather_code] || '';
+  $('feels').textContent = `Feels like ${tU(c.apparent_temperature)}°  ·  H ${tU(d.temperature_2m_max[T])}°  L ${tU(d.temperature_2m_min[T])}°`;
+  $('wstats').innerHTML = rows([
+    ['wind','Wind', `${spdU(c.wind_speed_10m)} ${compass(c.wind_direction_10m)}`],
+    ['gust','Gusts', spdU(c.wind_gusts_10m)],
+    ['drop','Humidity', c.relative_humidity_2m+'%'],
+    ['thermo','Dew point', tU(c.dew_point_2m)+'°'],
+    ['cloud','Clouds', c.cloud_cover+'%'],
+    ['gauge','Pressure', presU(c.pressure_msl)],
+    ['eye','Visibility', c.visibility==null?'n/a':distU(c.visibility)]
+  ]);
+  const uv = d.uv_index_max[T] ?? 0;
+  $('tiles').innerHTML = [
+    ['umbrella','RAIN CHANCE', (d.precipitation_probability_max[T] ?? 0)+'%'],
+    ['bucket','RAIN TOTAL', rainU(d.precipitation_sum[T]||0)],
+    ['sun','UV INDEX', `${Math.round(uv)} <small>${uvWord(uv)}</small>`],
+    ['wind','MAX WIND', spdU(d.wind_speed_10m_max[T])],
+    ['rise','SUNRISE', clock(d.sunrise[T])],
+    ['moon','SUNSET', clock(d.sunset[T])]
+  ].map(([ic,k,v])=>`<div class="tile">${icon(ic)}<div><b>${k}</b><span>${v}</span></div></div>`).join('');
+
+  // rain (water) and snow amounts for a tile; always shows precip on day tiles
+  function amtLine(p, sn, always){
+    p = p||0; sn = sn||0;
+    let out = (p>0 || always) ? `<div class="amt">${icon('drop')}${rainU(p)}</div>` : '';
+    if(sn>0) out += `<div class="amt snowc">${icon('flake')}${snowU(sn)}</div>`;
+    return out;
+  }
+  // next 24 hours, starting at the current local hour
+  const nowHour = c.time.slice(0,13);
+  let start = h.time.findIndex(t=>t.slice(0,13)===nowHour); if(start<0) start = 0;
+  $('hours').innerHTML = h.time.slice(start, start+24).map((t,i)=>{
+    const k = start+i, pop = h.precipitation_probability[k] ?? 0;
+    const label = i===0 ? 'NOW' : new Date(t).toLocaleTimeString('en-US',{hour:'numeric'}).replace(' ','');
+    const cd = h.weather_code[k], name = WMO[cd]||'';
+    return `<div class="hour${i===0?' now':''}" title="${esc(name)}"><b>${label}</b><img src="art/sprites/${cloudIcon(cd, h.is_day[k], h.temperature_2m[k])}.png" alt="${esc(name)}"><div class="t">${tU(h.temperature_2m[k])}°</div><div class="bar" title="${pop}% rain"><i style="width:${pop}%"></i></div><div class="pop">${pop}%</div>${amtLine(h.precipitation[k], h.snowfall[k])}</div>`;
+  }).join('');
+
+  $('days').innerHTML = d.time.slice(T).map((t,i)=>{
+    const k = i+T, day = i===0 ? 'TODAY' : new Date(t+'T12:00').toLocaleDateString('en-US',{weekday:'short'}).toUpperCase();
+    const cd = d.weather_code[k], name = WMO[cd]||'';
+    return `<div class="day${i===0?' today':''}"><b>${day}</b><img src="art/sprites/${cloudIcon(cd, 1, d.temperature_2m_max[k])}.png" alt="${esc(name)}"><div class="c">${esc(name)}</div><span class="hi">${tU(d.temperature_2m_max[k])}°</span> / <span class="lo">${tU(d.temperature_2m_min[k])}°</span><div class="pop">${d.precipitation_probability_max[k] ?? 0}% chance</div>${amtLine(d.precipitation_sum[k], d.snowfall_sum[k], true)}</div>`;
+  }).join('');
+}
+
+function renderDrought(){
+  if(!wx || !current) return;
+  const d = wx.daily, h = wx.hourly;
+  const past = d.precipitation_sum.slice(0,30).reduce((a,b)=>a+(b||0),0);
+  const soilArr = h.soil_moisture_0_to_1cm.filter(v=>v!=null);
+  const soil = soilArr.length ? soilArr[Math.min(soilArr.length-1, 30*24)] : null;
+  const lvl = droughtAt(current.lon, current.lat);
+  const dmLabel = lvl==null ? 'Loading map...' : `<span class="dm" style="background:${DM[lvl+1].c};${lvl>=3?'color:#fff':''}">${esc(DM[lvl+1].n)}</span>`;
+  $('dstats').innerHTML = rows([
+    ['cactus','Drought level', dmLabel],
+    ['drop','Rain, last 30 days', rainU(past)],
+    ['sprout','Topsoil moisture', soil==null?'n/a':soil.toFixed(2)+' m³/m³'+(soil<0.15?' (dry)':soil>0.3?' (wet)':'')],
+    ['umbrella','Rain next 7 days', rainU(d.precipitation_sum.slice(30).reduce((a,b)=>a+(b||0),0))]
+  ]);
+  $('dmood').textContent = lvl==null ? 'Waiting on drought map...' : DM[lvl+1].mood;
+  // Girl and Nimbus Nib both get worse as drought gets worse
+  const step = lvl==null||lvl<0 ? 0 : lvl<2 ? 1 : lvl<3 ? 2 : 3;   // none / D0-D1 / D2 / D3-D4
+  setMascot('sprite-d', 'girl-drought-' + ['watering','sweaty','empty','collapsed'][step], 'nimbus-nib-' + ['happy','rain','dizzy','flat'][step]);
+}
+
+$('f').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const q = $('q').value.trim(); if(!q) return;
+  try{ showPlace(await geocode(q)); }
+  catch(err){ $('wmood').innerHTML = $('dmood').innerHTML = '<span class="err">Couldn\'t find that place.</span>'; }
+});
+$('me').addEventListener('click', ()=>{
+  if(!navigator.geolocation){ $('wmood').textContent='Location not available.'; return; }
+  navigator.geolocation.getCurrentPosition(
+    pos=>showPlace({lat:pos.coords.latitude, lon:pos.coords.longitude, name:'Your location'}),
+    ()=>{ $('wmood').textContent = $('dmood').textContent = 'Location blocked. Type a city instead.'; });
+});
+
+let start = {lat:30.2672, lon:-97.7431, name:'Austin, Texas'};
+try{ const s = JSON.parse(localStorage.getItem('db-last')); if(s && s.lat) start = s; }catch(e){}
+// Weather shows right away; the drought file is big (~15 MB), so the drought page fills in when it arrives.
+window._weatherMood = c => { const m = weatherMood(c); return [girlFor(m[0], c), m[0], m[1]]; }; // handy for checking mascot picks in the console
+showPlace(start);
+loadMap().then(renderDrought);
+loadRainMap().catch(()=>{ $('rainnote').innerHTML = '<span class="err">Map failed to load.</span>'; });
+
+// °F / °C toggle, remembered on this device
+function paintUnits(){ $('units').textContent = metric ? '°C' : '°F'; }
+paintUnits();
+$('units').onclick = ()=>{
+  metric = !metric; paintUnits();
+  try{ localStorage.setItem('db-units', metric ? 'c' : 'f'); }catch(e){}
+  if(wx){ renderWeather(); renderDrought(); renderStorm(); }
+  renderRain();
+};
+}
+</script>
+</body>
+</html>
