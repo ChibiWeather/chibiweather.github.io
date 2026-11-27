@@ -156,6 +156,7 @@ button.units{background:var(--pink2)}
 .alert-card summary{cursor:pointer;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .alert-card p{margin:8px 0 0}
 .stormname{font-family:"Press Start 2P",monospace;font-size:14px;margin:16px 0 6px;color:var(--pink)}
+.retry{font-size:9px;padding:8px 10px;background:var(--pink);color:#fff;box-shadow:0 3px 0 var(--edge)}
 .legend i{width:18px;height:18px;border:3px solid var(--edge);border-radius:5px;display:inline-block}
 .err{color:#d8435f}
 a{color:#3d7fc4}
@@ -508,37 +509,111 @@ let droughtFeatures = null, pin = null;
 
 $('legend').innerHTML = DM.slice(1).map(d=>`<span><i style="background:${d.c}"></i>${esc(d.n)}</span>`).join('');
 
+// ---- drought data ----
+// Source: the U.S. Drought Monitor's current map, served by Esri's live feed (updated weekly).
+// The map is fetched simplified (~90 KB instead of the 15 MB USDM file), and your spot's
+// level comes from a tiny point lookup on the full-detail map, so the level shows fast
+// even on a slow phone connection. Every request has a timeout and retries.
+const USDM_SVC = 'https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/US_Drought_Intensity_v1/FeatureServer/3';
+const DROUGHT_CACHE = 'db-drought-map';   // ONE copy only: overwritten each time a newer map arrives
+let droughtG = null, droughtState = 'loading', droughtWeek = '', droughtSpot = null;
+
+async function fetchJSON(url, ms, tries=3){
+  let err;
+  for(let i=0; i<tries; i++){
+    const ac = new AbortController(), t = setTimeout(()=>ac.abort(), ms);
+    try{
+      const r = await fetch(url, {signal: ac.signal});
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json();
+      if(j.error) throw new Error(j.error.message || 'service error');
+      return j;
+    }catch(e){ err = e; }
+    finally{ clearTimeout(t); }
+    await new Promise(res=>setTimeout(res, 1500*(i+1)));   // back off: 1.5 s, 3 s
+  }
+  throw err;
+}
+const weekLabel = p => p ? new Date(+p.slice(0,4), +p.slice(4,6)-1, +p.slice(6,8)).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+
+// d3 needs each polygon's outer ring clockwise. Sources differ (and simplification can
+// flip some), so check every polygon: one that covers more than half the globe is inside-out.
+function fixWinding(gj){
+  gj.features.forEach(f=>{
+    const g = f.geometry; if(!g) return;
+    const polys = g.type==='Polygon' ? [g.coordinates] : g.coordinates;
+    polys.forEach(poly=>{ if(d3.geoArea({type:'Polygon', coordinates: poly}) > 2*Math.PI) poly.forEach(r=>r.reverse()); });
+  });
+  return gj;
+}
+function drawDrought(gj, week){
+  fixWinding(gj);
+  droughtFeatures = gj.features.filter(f=>f.geometry).map(f=>({f, level: Number(f.properties.dm ?? f.properties.DM)}));
+  droughtFeatures.sort((a,b)=>a.level-b.level);
+  if(droughtG) droughtG.selectAll('path').data(droughtFeatures).join('path')
+    .attr('d', d=>path(d.f)).attr('fill', d=>DM[d.level+1].c).attr('stroke','none');
+  droughtWeek = week;
+  droughtState = 'ok';
+  $('mapnote').textContent = `Source: US Drought Monitor, map of ${weekLabel(week)} (updated weekly on Thursdays).`;
+  renderDrought();
+}
+
+async function loadDroughtData(){
+  droughtState = droughtFeatures ? 'ok' : 'loading';
+  // 1. show the saved map right away, if there is one
+  let cached = null;
+  try{ cached = JSON.parse(localStorage.getItem(DROUGHT_CACHE)); }catch(e){}
+  if(cached && cached.gj && !droughtFeatures) drawDrought(cached.gj, cached.week);
+  // 2. fetch the current map (small, simplified) and replace the saved copy
+  try{
+    const info = await fetchJSON(`${USDM_SVC}/query?where=1%3D1&outFields=period&returnGeometry=false&resultRecordCount=1&f=json`, 12000);
+    const week = info.features?.[0]?.attributes?.period || '';
+    if(!(cached && cached.week === week && droughtFeatures)){
+      const gj = await fetchJSON(`${USDM_SVC}/query?where=1%3D1&outFields=dm&returnGeometry=true&maxAllowableOffset=0.02&geometryPrecision=2&outSR=4326&f=geojson`, 30000);
+      drawDrought(gj, week);
+      try{ localStorage.setItem(DROUGHT_CACHE, JSON.stringify({week, gj})); }catch(e){ try{ localStorage.removeItem(DROUGHT_CACHE); }catch(_){} }
+    }
+  }catch(e){
+    if(!droughtFeatures){
+      droughtState = 'error';
+      $('mapnote').innerHTML = '<span class="err">Could not load the drought map.</span> <button type="button" class="retry">Try again</button>';
+    }
+  }
+  renderDrought();
+}
+
+// Exact drought level at the spot (full-detail map, one tiny request).
+async function loadDroughtSpot(p){
+  droughtSpot = null;
+  try{
+    const j = await fetchJSON(`${USDM_SVC}/query?geometry=${p.lon},${p.lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=dm&returnGeometry=false&f=json`, 10000);
+    if(current !== p) return;
+    const lv = (j.features||[]).map(f=>+f.attributes.dm);
+    droughtSpot = {lvl: lv.length ? Math.max(...lv) : -1};
+  }catch(e){ if(current === p) droughtSpot = {err:true}; }
+  renderDrought();
+}
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.retry')) return;
+  $('mapnote').textContent = 'Loading the latest US Drought Monitor map...';
+  droughtState = 'loading'; renderDrought();
+  loadDroughtData();
+  if(current) loadDroughtSpot(current);
+});
+
 async function loadMap(){
+  droughtG = root.append('g').attr('class','dm-layer');
+  loadDroughtData();          // doesn't wait for the outline map
   try{
     // counties file also holds states + nation outlines
     const us = await usTopo;
-    root.append('path').datum(topojson.feature(us, us.objects.nation)).attr('class','nation').attr('d', path);
-    const g = root.append('g');
+    root.insert('path', '.dm-layer').datum(topojson.feature(us, us.objects.nation)).attr('class','nation').attr('d', path);
     root.append('path').datum(topojson.mesh(us, us.objects.counties, (a,b)=>a!==b && (a.id/1000|0)===(b.id/1000|0))).attr('class','co').attr('d', path).attr('display', zoomK>=3 ? null : 'none');
     root.append('path').datum(topojson.mesh(us, us.objects.states, (a,b)=>a!==b)).attr('class','st').attr('d', path);
-    try{
-      const r = await fetch('https://droughtmonitor.unl.edu/data/json/usdm_current.json');
-      const dm = await r.json();
-      // USDM GeoJSON uses counterclockwise outer rings; d3 wants clockwise, so flip them
-      // (otherwise every shape fills the whole map and the lookup is inverted).
-      dm.features.forEach(f=>{
-        const geo = f.geometry; if(!geo) return;
-        const polys = geo.type==='Polygon' ? [geo.coordinates] : geo.coordinates;
-        polys.forEach(p=>p.forEach(ring=>ring.reverse()));
-      });
-      droughtFeatures = dm.features.map(f=>({f, level: Number(f.properties.DM ?? f.properties.dm)}));
-      droughtFeatures.sort((a,b)=>a.level-b.level);
-      g.selectAll('path').data(droughtFeatures).join('path')
-        .attr('d', d=>path(d.f)).attr('fill', d=>DM[d.level+1].c).attr('stroke','none');
-      $('mapnote').textContent = 'Source: US Drought Monitor (updated weekly on Thursdays).';
-    }catch(e){
-      $('mapnote').innerHTML = '<span class="err">Could not load drought data right now.</span> See <a href="https://droughtmonitor.unl.edu/" target="_blank" rel="noopener">droughtmonitor.unl.edu</a>.';
-    }
-    if(pin) placePin(pin);
-  }catch(e){
-    $('mapnote').innerHTML = '<span class="err">Map failed to load.</span>';
-  }
+  }catch(e){ /* outlines are decoration; the drought colors still draw */ }
+  if(pin) placePin(pin);
 }
+
 function placePin(p){
   pin = p;
   root.selectAll('circle').remove();
@@ -811,7 +886,7 @@ async function showPlace(p){
   document.querySelectorAll('.place').forEach(el=>el.textContent = p.name);
   placePin(p); placeRainPin(p);
   focusMaps(p);
-  loadRainSpot(p); loadAlerts(p);
+  loadRainSpot(p); loadAlerts(p); loadDroughtSpot(p);
   const u = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}`+
     '&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,visibility,is_day'+
     '&hourly=temperature_2m,weather_code,precipitation_probability,is_day,precipitation,rain,showers,snowfall,wind_gusts_10m,soil_moisture_0_to_1cm'+
@@ -892,15 +967,18 @@ function renderDrought(){
   const past = d.precipitation_sum.slice(0,30).reduce((a,b)=>a+(b||0),0);
   const soilArr = h.soil_moisture_0_to_1cm.filter(v=>v!=null);
   const soil = soilArr.length ? soilArr[Math.min(soilArr.length-1, 30*24)] : null;
-  const lvl = droughtAt(current.lon, current.lat);
-  const dmLabel = lvl==null ? 'Loading map...' : `<span class="dm" style="background:${DM[lvl+1].c};${lvl>=3?'color:#fff':''}">${esc(DM[lvl+1].n)}</span>`;
+  // exact point lookup first; the drawn (simplified) map is the fallback
+  const lvl = droughtSpot && !droughtSpot.err ? droughtSpot.lvl : droughtAt(current.lon, current.lat);
+  const failed = lvl==null && (droughtState==='error' || (droughtSpot && droughtSpot.err && droughtState!=='loading'));
+  const dmLabel = lvl!=null ? `<span class="dm" style="background:${DM[lvl+1].c};${lvl>=3?'color:#fff':''}">${esc(DM[lvl+1].n)}</span>`
+    : failed ? '<button type="button" class="retry">Try again</button>' : 'Loading...';
   $('dstats').innerHTML = rows([
     ['cactus','Drought level', dmLabel],
     ['drop','Rain, last 30 days', rainU(past)],
     ['sprout','Topsoil moisture', soil==null?'n/a':soil.toFixed(2)+' m³/m³'+(soil<0.15?' (dry)':soil>0.3?' (wet)':'')],
     ['umbrella','Rain next 7 days', rainU(d.precipitation_sum.slice(30).reduce((a,b)=>a+(b||0),0))]
   ]);
-  $('dmood').textContent = lvl==null ? 'Waiting on drought map...' : DM[lvl+1].mood;
+  $('dmood').textContent = lvl!=null ? DM[lvl+1].mood : failed ? 'The drought map is not answering. Tap Try again.' : 'Checking the drought map...';
   // Girl and Nimbus Nib both get worse as drought gets worse
   const step = lvl==null||lvl<0 ? 0 : lvl<2 ? 1 : lvl<3 ? 2 : 3;   // none / D0-D1 / D2 / D3-D4
   setMascot('sprite-d', 'girl-drought-' + ['watering','sweaty','empty','collapsed'][step], 'nimbus-nib-' + ['happy','rain','dizzy','flat'][step]);
