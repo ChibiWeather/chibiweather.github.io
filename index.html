@@ -244,7 +244,7 @@ a{color:#3d7fc4}
           </div>
         </div>
         <div class="legend" id="legend"></div>
-        <div class="note">Scroll or pinch to zoom, drag to move. County lines show when zoomed in.</div>
+        <div class="note">Opens zoomed to your area. Scroll or pinch to zoom, drag to move, US to see the whole country.</div>
         <div class="note" id="mapnote">Loading the latest US Drought Monitor map...</div>
       </div>
     </div>
@@ -499,8 +499,7 @@ $('zin').onclick = ()=>svg.transition().duration(300).call(zoom.scaleBy, 2);
 $('zout').onclick = ()=>svg.transition().duration(300).call(zoom.scaleBy, 0.5);
 $('zreset').onclick = ()=>svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
 $('zpin').onclick = ()=>{
-  const xy = pin && proj([pin.lon, pin.lat]); if(!xy) return;
-  svg.transition().duration(600).call(zoom.transform, d3.zoomIdentity.translate(480,300).scale(8).translate(-xy[0],-xy[1]));
+  if(pin) svg.transition().duration(600).call(zoom.transform, regionTransform(pin));
 };
 const usTopo = fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json').then(r=>r.json());
 const proj = d3.geoAlbersUsa().scale(1250).translate([480,300]);
@@ -581,8 +580,7 @@ $('rzin').onclick = ()=>rsvg.transition().duration(300).call(rzoom.scaleBy, 2);
 $('rzout').onclick = ()=>rsvg.transition().duration(300).call(rzoom.scaleBy, 0.5);
 $('rzreset').onclick = ()=>rsvg.transition().duration(500).call(rzoom.transform, d3.zoomIdentity);
 $('rzpin').onclick = ()=>{
-  const xy = pin && proj([pin.lon, pin.lat]); if(!xy) return;
-  rsvg.transition().duration(600).call(rzoom.transform, d3.zoomIdentity.translate(480,300).scale(6).translate(-xy[0],-xy[1]));
+  if(pin) rsvg.transition().duration(600).call(rzoom.transform, regionTransform(pin));
 };
 function refreshRain(){
   if(!rainImg) return;
@@ -780,6 +778,17 @@ function renderAlerts(){
     <p>${esc(a.headline||'')}</p><p class="note">${esc(a.description||'').replace(/\n\n/g,'<br><br>')}</p></details>`).join('');
 }
 
+// Open both maps zoomed to the searched spot, about 500 miles across (zoom 5.5 on the 960px US map).
+const REGION_K = 5.5;
+function regionTransform(p){
+  const xy = proj([p.lon, p.lat]); if(!xy) return d3.zoomIdentity;
+  return d3.zoomIdentity.translate(480,300).scale(REGION_K).translate(-xy[0],-xy[1]);
+}
+function focusMaps(p){
+  svg.transition().duration(700).call(zoom.transform, regionTransform(p));
+  rsvg.transition().duration(700).call(rzoom.transform, regionTransform(p));
+}
+
 // ---- places ----
 async function geocode(q){
   const zip = /^\d{5}$/.test(q.trim());
@@ -801,6 +810,7 @@ async function showPlace(p){
   $('wmood').textContent = $('dmood').textContent = $('smood').textContent = 'Checking the sky...';
   document.querySelectorAll('.place').forEach(el=>el.textContent = p.name);
   placePin(p); placeRainPin(p);
+  focusMaps(p);
   loadRainSpot(p); loadAlerts(p);
   const u = `https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}`+
     '&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,relative_humidity_2m,dew_point_2m,pressure_msl,cloud_cover,visibility,is_day'+
