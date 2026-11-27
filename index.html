@@ -534,6 +534,14 @@ async function fetchJSON(url, ms, tries=3){
   }
   throw err;
 }
+// Next Thursday at 14:00 UTC (9 AM EST / 10 AM EDT), safely after the weekly release.
+function nextRelease(){
+  const d = new Date(); d.setUTCHours(14,0,0,0);
+  let add = (4 - d.getUTCDay() + 7) % 7;            // 4 = Thursday
+  if(add === 0 && Date.now() >= d.getTime()) add = 7;
+  d.setUTCDate(d.getUTCDate() + add);
+  return d.getTime();
+}
 const weekLabel = p => p ? new Date(+p.slice(0,4), +p.slice(4,6)-1, +p.slice(6,8)).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
 
 // d3 needs each polygon's outer ring clockwise. Sources differ (and simplification can
@@ -564,15 +572,25 @@ async function loadDroughtData(){
   let cached = null;
   try{ cached = JSON.parse(localStorage.getItem(DROUGHT_CACHE)); }catch(e){}
   if(cached && cached.gj && !droughtFeatures) drawDrought(cached.gj, cached.week);
-  // 2. fetch the current map (small, simplified) and replace the saved copy
+  // 2. The Drought Monitor publishes a new map every Thursday morning (about 8:30 AM ET).
+  //    Until the next release after our last download, use the saved copy with no network at all.
+  if(cached && cached.gj && cached.nextCheck && Date.now() < cached.nextCheck){ renderDrought(); return; }
+  //    Otherwise ask which week is current (tiny request) and download only if it's newer.
   try{
     const info = await fetchJSON(`${USDM_SVC}/query?where=1%3D1&outFields=period&returnGeometry=false&resultRecordCount=1&f=json`, 12000);
     const week = info.features?.[0]?.attributes?.period || '';
-    if(!(cached && cached.week === week && droughtFeatures)){
-      const gj = await fetchJSON(`${USDM_SVC}/query?where=1%3D1&outFields=dm&returnGeometry=true&maxAllowableOffset=0.02&geometryPrecision=2&outSR=4326&f=geojson`, 30000);
+    let gj = cached && cached.week === week ? cached.gj : null, nextCheck;
+    if(gj){
+      // same week as saved: the new map may just be running late, so look again in 3 hours
+      nextCheck = Date.now() + 3*3600e3;
+    } else {
+      gj = await fetchJSON(`${USDM_SVC}/query?where=1%3D1&outFields=dm&returnGeometry=true&maxAllowableOffset=0.02&geometryPrecision=2&outSR=4326&f=geojson`, 30000);
       drawDrought(gj, week);
-      try{ localStorage.setItem(DROUGHT_CACHE, JSON.stringify({week, gj})); }catch(e){ try{ localStorage.removeItem(DROUGHT_CACHE); }catch(_){} }
+      nextCheck = nextRelease();
     }
+    if(!droughtFeatures) drawDrought(gj, week);
+    // ONE saved copy: this overwrites the previous one
+    try{ localStorage.setItem(DROUGHT_CACHE, JSON.stringify({week, nextCheck, gj})); }catch(e){ try{ localStorage.removeItem(DROUGHT_CACHE); }catch(_){} }
   }catch(e){
     if(!droughtFeatures){
       droughtState = 'error';
