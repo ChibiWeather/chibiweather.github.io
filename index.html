@@ -157,6 +157,9 @@ button.units{background:var(--pink2)}
 .alert-card p{margin:8px 0 0}
 .stormname{font-family:"Press Start 2P",monospace;font-size:14px;margin:16px 0 6px;color:var(--pink)}
 .retry{font-size:9px;padding:8px 10px;background:var(--pink);color:#fff;box-shadow:0 3px 0 var(--edge)}
+.quip{display:flex;gap:12px;align-items:center;background:#fff3d6;border:3px solid var(--edge);border-radius:12px;padding:8px 12px;margin-top:10px;font-weight:800}
+.quip.cold{background:#dff1ff}
+.quip img{width:56px;height:56px;image-rendering:pixelated;flex:none}
 .legend i{width:18px;height:18px;border:3px solid var(--edge);border-radius:5px;display:inline-block}
 .err{color:#d8435f}
 a{color:#3d7fc4}
@@ -264,6 +267,10 @@ a{color:#3d7fc4}
         <div id="sstats"></div>
       </div>
       <div class="stack">
+        <div class="box">
+          <h2>TONIGHT + TOMORROW</h2>
+          <div id="stonight"></div>
+        </div>
         <div class="box">
           <h2>STORM TIMELINE</h2>
           <div id="stimeline"></div>
@@ -788,8 +795,32 @@ function findStorms(){
     return ev;
   });
 }
+// Tonight's low (now through 9 AM tomorrow), plus today's and tomorrow's highs, with a cozy tip.
+function renderTonight(){
+  const h = wx.hourly, d = wx.daily, c = wx.current, T = 30;
+  let s = h.time.findIndex(t=>t.slice(0,13)===c.time.slice(0,13)); if(s<0) s = 0;
+  const tomorrow = d.time[T+1];
+  let e = h.time.findIndex(t=>t === tomorrow+'T09:00'); if(e<0) e = s+15;
+  const temps = h.temperature_2m.slice(s, e+1);
+  const low = Math.min(...temps), lowAt = s + temps.indexOf(low);
+  const lowWhen = new Date(h.time[lowAt]).toLocaleTimeString('en-US',{hour:'numeric'});
+  const [img, tip, cold] =
+    low <= 10 ? ['ice-frozen', 'Bitter cold! Start the stove, grab the big blanket, and drip the faucets so pipes don\'t freeze.', 1] :
+    low <= 20 ? ['ice-shiver', 'Start the stove tonight! Drip the faucets too, pipes hate this.', 1] :
+    low <  32 ? ['snow-happy', 'Start the stove tonight! Bring the plants inside.', 1] :
+    low <  40 ? ['night-sleepy', 'Chilly night. Fuzzy socks recommended.', 0] :
+    low <  60 ? ['night-happy', 'Nice and cool. Perfect sleeping weather.', 0] :
+    low <  72 ? ['night-happy', 'Comfy night. Windows open?', 0] :
+                ['sunny-sweaty', 'Warm night! Fan on, blanket off.', 0];
+  $('stonight').innerHTML = rows([
+    ['moon', 'Low tonight', `${tU(low)}${degU()} <small class="note">around ${lowWhen}</small>`],
+    ['thermo', 'High today', `${tU(d.temperature_2m_max[T])}${degU()}`],
+    ['sun', 'High tomorrow', `${tU(d.temperature_2m_max[T+1])}${degU()}`],
+    ['flake', 'Low tomorrow night', `${tU(d.temperature_2m_min[T+2] ?? d.temperature_2m_min[T+1])}${degU()}`]
+  ]) + `<div class="quip ${cold?'cold':''}"><img src="art/sprites/${img}.png" alt=""><span>${esc(tip)}</span></div>`;
+}
 function stormMascot(ev){
-  if(!ev) return ['girl-sunny-wave','sunny-cool','No storms ahead! Enjoy the calm.'];
+  if(!ev) return wx && !wx.current.is_day ? ['girl-night-wave','night-happy','No storms ahead! Sleep tight.'] : ['girl-sunny-wave','sunny-cool','No storms ahead! Enjoy the calm.'];
   if(ev.ice) return ['girl-ice-slip','ice-shiver','Ice storm coming! Watch your step.'];
   if(ev.snow>=12) return ['girl-snow-buried','snow-flat','Huge snowstorm! Stock up and stay in.'];
   if(ev.snow>=6) return ['girl-snow-shiver','snow-wince','Big snow coming. Bundle up!'];
@@ -809,12 +840,17 @@ function renderStorm(){
   const tab = document.querySelector('[data-page=storm]');
   tab.classList.toggle('alert', !!ev || (alerts && alerts.length>0));
   const when = k => new Date(h.time[k]).toLocaleString('en-US',{weekday:'short',hour:'numeric'});
+  const d = wx.daily, wk = {rain: d.precipitation_sum.slice(30).reduce((a,b)=>a+(b||0),0) - d.snowfall_sum.slice(30).reduce((a,b)=>a+(b||0),0)/10, snow: d.snowfall_sum.slice(30).reduce((a,b)=>a+(b||0),0)};
+  wk.rain = Math.max(0, wk.rain);
+  renderTonight();
   if(!ev){
     const light = all[0];
     $('sname').textContent = 'ALL CALM';
     $('sstats').innerHTML = rows([
       ['sun','Next 7 days', 'No storms'],
-      ['drop','Next wet spell', light ? `${when(light.a)}, ${rainU(light.water)}` : 'None'],
+      ['drop','Total rain, 7 days', rainU(wk.rain)],
+      ['flake','Total snow, 7 days', snowU(wk.snow)],
+      ['umbrella','Next wet spell', light ? `${when(light.a)}, ${rainU(light.water)}` : 'None'],
     ]) + '<div class="note">A storm here means 0.5 in of rain, 2 in of snow, thunder, ice, or strong wind on the way.</div>';
     $('stimeline').innerHTML = '<div class="calm"><img src="art/sprites/sunny-cool.png" alt=""><div>Nothing stormy in the next 7 days.</div></div>';
   } else {
